@@ -1,6 +1,6 @@
-use rowan::{GreenNode, GreenNodeData, GreenToken, GreenTokenData, NodeOrToken};
+use rslint_parser::{GreenNode, NodeOrToken, SyntaxNode};
+use rslint_rowan::GreenToken;
 use std::ops::Deref;
-use syntax::SyntaxNode;
 
 /// Id of the parent node into which a child node should be inserted
 /// 0 -> Insert to root
@@ -154,16 +154,16 @@ fn with_merged_children(
 }
 
 /// Tests if two green nodes are identical (identical kind and children point to the same node data)
-fn nodes_shallow_eq(lhs: &GreenNodeData, rhs: &GreenNodeData) -> bool {
+fn nodes_shallow_eq(lhs: &GreenNode, rhs: &GreenNode) -> bool {
 	if lhs.kind() != rhs.kind() || lhs.children().len() != rhs.children().len() {
 		false
 	} else {
 		/// Returns a ID (the pointer of the underlining data) of a green node or token for a shallow compare
 		/// Copied from rowan NodeCache
-		fn element_id(elem: NodeOrToken<&'_ GreenNodeData, &'_ GreenTokenData>) -> *const () {
+		fn element_id(elem: NodeOrToken<&'_ GreenNode, &'_ GreenToken>) -> *const () {
 			match elem {
-				NodeOrToken::Node(it) => it as *const GreenNodeData as *const (),
-				NodeOrToken::Token(it) => it as *const GreenTokenData as *const (),
+				NodeOrToken::Node(it) => it as *const GreenNode as *const (),
+				NodeOrToken::Token(it) => it as *const GreenToken as *const (),
 			}
 		}
 
@@ -178,24 +178,24 @@ mod tests {
 	use super::nodes_shallow_eq;
 	use crate::printer::cst_builder::{CSTBuilder, ParentNodeId};
 	use crate::Tokens;
-	use rowan::{GreenNode, GreenNodeData, GreenToken, NodeOrToken};
+	use rslint_parser::{GreenNode, NodeOrToken, SyntaxKind, SyntaxNode};
+	use rslint_rowan::GreenToken;
 	use std::ops::Deref;
-	use syntax::{SyntaxKind, SyntaxNode};
 
 	fn create_node(kind: SyntaxKind) -> GreenNode {
-		GreenNode::new(rowan::SyntaxKind(kind.into()), vec![])
+		GreenNode::new(rslint_rowan::SyntaxKind(kind.into()), vec![])
 	}
 
 	fn create_node_with_children(
 		kind: SyntaxKind,
 		children: Vec<NodeOrToken<GreenNode, GreenToken>>,
 	) -> GreenNode {
-		GreenNode::new(rowan::SyntaxKind(kind.into()), children)
+		GreenNode::new(rslint_rowan::SyntaxKind(kind.into()), children)
 	}
 
 	#[test]
 	fn nodes_shallow_eq_returns_true_for_the_same_node() {
-		let node = create_node(SyntaxKind::ROOT);
+		let node = create_node(SyntaxKind::MODULE);
 
 		assert!(nodes_shallow_eq(&node, &node));
 	}
@@ -204,10 +204,10 @@ mod tests {
 	fn nodes_shallow_eq_returns_true_for_nodes_containing_same_token() {
 		let mut tokens = Tokens::default();
 
-		let token = tokens.string("test");
+		let token = tokens.double_quoted_string("test");
 		let lhs =
-			create_node_with_children(SyntaxKind::ROOT, vec![NodeOrToken::Token(token.clone())]);
-		let rhs = create_node_with_children(SyntaxKind::ROOT, vec![NodeOrToken::Token(token)]);
+			create_node_with_children(SyntaxKind::MODULE, vec![NodeOrToken::Token(token.clone())]);
+		let rhs = create_node_with_children(SyntaxKind::MODULE, vec![NodeOrToken::Token(token)]);
 
 		assert!(nodes_shallow_eq(&lhs, &rhs));
 	}
@@ -217,22 +217,24 @@ mod tests {
 		let mut tokens = Tokens::default();
 
 		let common_node = create_node_with_children(
-			SyntaxKind::STRING_LITERAL,
-			vec![NodeOrToken::Token(tokens.string("test"))],
+			SyntaxKind::LITERAL,
+			vec![NodeOrToken::Token(tokens.double_quoted_string("test"))],
 		);
+
 		let lhs = create_node_with_children(
-			SyntaxKind::ROOT,
+			SyntaxKind::SCRIPT,
 			vec![NodeOrToken::Node(common_node.clone())],
 		);
-		let rhs = create_node_with_children(SyntaxKind::ROOT, vec![NodeOrToken::Node(common_node)]);
+		let rhs =
+			create_node_with_children(SyntaxKind::SCRIPT, vec![NodeOrToken::Node(common_node)]);
 
 		assert!(nodes_shallow_eq(&lhs, &rhs));
 	}
 
 	#[test]
 	fn nodes_shallow_eq_returns_false_for_nodes_of_different_kind() {
-		let node = create_node(SyntaxKind::ROOT);
-		let node2 = create_node(SyntaxKind::PROGRAM);
+		let node = create_node(SyntaxKind::SCRIPT);
+		let node2 = create_node(SyntaxKind::MODULE);
 
 		assert!(!nodes_shallow_eq(&node, &node2));
 	}
@@ -242,18 +244,18 @@ mod tests {
 		let mut tokens = Tokens::default();
 
 		let root_lhs = create_node_with_children(
-			SyntaxKind::PROGRAM,
+			SyntaxKind::SCRIPT,
 			vec![NodeOrToken::Node(create_node_with_children(
-				SyntaxKind::STRING_LITERAL,
-				vec![NodeOrToken::Token(tokens.string("test"))],
+				SyntaxKind::LITERAL,
+				vec![NodeOrToken::Token(tokens.double_quoted_string("test"))],
 			))],
 		);
 
 		let root_rhs = create_node_with_children(
-			SyntaxKind::PROGRAM,
+			SyntaxKind::SCRIPT,
 			vec![NodeOrToken::Node(create_node_with_children(
-				SyntaxKind::STRING_LITERAL,
-				vec![NodeOrToken::Token(tokens.string("test"))],
+				SyntaxKind::LITERAL,
+				vec![NodeOrToken::Token(tokens.double_quoted_string("test"))],
 			))],
 		);
 
@@ -267,21 +269,19 @@ mod tests {
 		let mut tokens = Tokens::default();
 
 		let root_position =
-			builder.append_node(ParentNodeId::default(), create_node(SyntaxKind::PROGRAM));
-		let child_position = builder.append_node(root_position, create_node(SyntaxKind::NUMBER));
-		builder.append_token(child_position, tokens.get(SyntaxKind::NUMBER_TOKEN, "5"));
+			builder.append_node(ParentNodeId::default(), create_node(SyntaxKind::SCRIPT));
+		let child_position = builder.append_node(root_position, create_node(SyntaxKind::LITERAL));
+		builder.append_token(child_position, tokens.get(SyntaxKind::NUMBER, "5"));
 		builder.append_token(root_position, tokens.whitespace("\n"));
 
 		let root = builder.root_node();
 
 		let expected = SyntaxNode::new_root(create_node_with_children(
-			SyntaxKind::PROGRAM,
+			SyntaxKind::SCRIPT,
 			vec![
 				NodeOrToken::Node(create_node_with_children(
-					SyntaxKind::NUMBER,
-					vec![NodeOrToken::Token(
-						tokens.get(SyntaxKind::NUMBER_TOKEN, "5"),
-					)],
+					SyntaxKind::LITERAL,
+					vec![NodeOrToken::Token(tokens.get(SyntaxKind::NUMBER, "5"))],
 				)),
 				NodeOrToken::Token(tokens.whitespace("\n")),
 			],
@@ -303,62 +303,67 @@ mod tests {
 		// )
 		let mut tokens = Tokens::default();
 
+		let number = create_node_with_children(
+			SyntaxKind::LITERAL,
+			vec![NodeOrToken::Token(tokens.get(SyntaxKind::NUMBER, "1"))],
+		);
+
 		let array = create_node_with_children(
-			SyntaxKind::ARRAY,
+			SyntaxKind::ARRAY_EXPR,
 			vec![
 				NodeOrToken::Token(tokens.left_bracket()),
-				NodeOrToken::Token(tokens.get(SyntaxKind::NUMBER_TOKEN, "1")),
+				NodeOrToken::Node(number.clone()),
 				NodeOrToken::Token(tokens.right_bracket()),
 			],
 		);
 
 		let string = create_node_with_children(
-			SyntaxKind::STRING_LITERAL,
-			vec![
-				NodeOrToken::Token(tokens.single_quote()),
-				NodeOrToken::Token(tokens.string("abc")),
-				NodeOrToken::Token(tokens.single_quote()),
-			],
+			SyntaxKind::LITERAL,
+			vec![NodeOrToken::Token(tokens.get(SyntaxKind::STRING, "'abc'"))],
 		);
 
 		let program = create_node_with_children(
-			SyntaxKind::PROGRAM,
+			SyntaxKind::MODULE,
 			vec![
 				NodeOrToken::Node(array.clone()),
 				NodeOrToken::Node(string.clone()),
 			],
 		);
 
+		// program(
+		// 	[1],
+		//  "abc"
+		// )
 		let mut builder = CSTBuilder::default();
 
 		let program_position = builder.append_node(ParentNodeId::default(), program.clone());
 
 		let array_position = builder.append_node(program_position, array.clone());
 		builder.append_token(array_position, tokens.left_bracket());
-		builder.append_token(array_position, tokens.get(SyntaxKind::NUMBER_TOKEN, "1"));
+		let num_position = builder.append_node(array_position, number);
+		builder.append_token(num_position, tokens.get(SyntaxKind::NUMBER, "1"));
 		builder.append_token(array_position, tokens.right_bracket());
 
 		// convert quotes
 		let string_position = builder.append_node(program_position, string);
-		builder.append_token(string_position, tokens.double_quote());
-		builder.append_token(string_position, tokens.string("abc"));
-		builder.append_token(string_position, tokens.double_quote());
+		builder.append_token(string_position, tokens.double_quoted_string("abc"));
 
 		let root = builder.root_node();
 
 		let expected_str = create_node_with_children(
-			SyntaxKind::STRING_LITERAL,
+			SyntaxKind::LITERAL,
+			vec![NodeOrToken::Token(tokens.double_quoted_string("abc"))],
+		);
+
+		let expected_program = create_node_with_children(
+			SyntaxKind::MODULE,
 			vec![
-				NodeOrToken::Token(tokens.double_quote()),
-				NodeOrToken::Token(tokens.string("abc")),
-				NodeOrToken::Token(tokens.double_quote()),
+				NodeOrToken::Node(array.clone()),
+				NodeOrToken::Node(expected_str.clone()),
 			],
 		);
 
-		let expected_program =
-			program.replace_child(1 /* string node */, NodeOrToken::Node(expected_str));
-
-		assert_eq!(expected_program.deref(), root.green().deref(),);
+		assert_eq!(&expected_program, root.green());
 
 		let generated_array = root.first_child().unwrap();
 
@@ -375,40 +380,35 @@ mod tests {
 		let mut tokens = Tokens::default();
 
 		let program_pos =
-			builder.append_node(ParentNodeId::root(), create_node(SyntaxKind::PROGRAM));
+			builder.append_node(ParentNodeId::root(), create_node(SyntaxKind::SCRIPT));
 		let snapshot = builder.snapshot();
 
-		let string_pos = builder.append_node(program_pos, create_node(SyntaxKind::STRING_LITERAL));
-		builder.append_token(string_pos, tokens.double_quote());
+		let string_pos = builder.append_node(program_pos, create_node(SyntaxKind::LITERAL));
 		builder.append_token(
 			string_pos,
-			tokens.string("a very long string that causes a line break"),
+			tokens.double_quoted_string("a very long string that causes a line break"),
 		);
 
 		builder.restore(snapshot);
 
-		let string_pos = builder.append_node(program_pos, create_node(SyntaxKind::STRING_LITERAL));
-		builder.append_token(string_pos, tokens.whitespace("\n"));
-		builder.append_token(string_pos, tokens.double_quote());
+		let string_pos = builder.append_node(program_pos, create_node(SyntaxKind::LITERAL));
 		builder.append_token(
 			string_pos,
-			tokens.string("a very long string that causes a line break"),
+			tokens.double_quoted_string("a very long string that causes a line break"),
 		);
-		builder.append_token(string_pos, tokens.double_quote());
+		builder.append_token(string_pos, tokens.whitespace("\n"));
 
 		let root = builder.root_node();
 
 		let expected = SyntaxNode::new_root(create_node_with_children(
-			SyntaxKind::PROGRAM,
+			SyntaxKind::SCRIPT,
 			vec![NodeOrToken::Node(create_node_with_children(
-				SyntaxKind::STRING_LITERAL,
+				SyntaxKind::LITERAL,
 				vec![
-					NodeOrToken::Token(tokens.whitespace("\n")),
-					NodeOrToken::Token(tokens.double_quote()),
 					NodeOrToken::Token(
-						tokens.string("a very long string that causes a line break"),
+						tokens.double_quoted_string("a very long string that causes a line break"),
 					),
-					NodeOrToken::Token(tokens.double_quote()),
+					NodeOrToken::Token(tokens.whitespace("\n")),
 				],
 			))],
 		));
@@ -422,7 +422,7 @@ mod tests {
 		);
 	}
 
-	fn node_data_ptr(data: &GreenNodeData) -> *const () {
-		data as *const GreenNodeData as *const ()
+	fn node_data_ptr(data: &GreenNode) -> *const () {
+		data as *const GreenNode as *const ()
 	}
 }

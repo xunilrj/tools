@@ -2,13 +2,22 @@ use crate::format_token::NodeToken;
 use crate::{
 	format_tokens, FormatContext, FormatToken, FormatValue, GroupToken, LineToken, ListToken,
 };
-use rowan::GreenNode;
+
+use rslint_parser::{GreenNode, SyntaxKind};
+use rslint_rowan::GreenToken;
 use serde_json::Value;
-use syntax::SyntaxKind;
 
 #[inline]
 fn create_green_node(kind: SyntaxKind) -> GreenNode {
-	GreenNode::new(rowan::SyntaxKind(kind.into()), vec![])
+	GreenNode::new(rslint_rowan::SyntaxKind(kind.into()), std::iter::empty())
+}
+
+#[inline]
+fn create_literal_token(token: GreenToken) -> FormatToken {
+	FormatToken::from(NodeToken::new(
+		create_green_node(SyntaxKind::LITERAL),
+		token,
+	))
 }
 
 impl FormatValue for Value {
@@ -20,15 +29,18 @@ impl FormatValue for Value {
 				let number = number.as_f64().unwrap();
 				let number_token = context
 					.tokens
-					.get(SyntaxKind::NUMBER_TOKEN, number.to_string().as_str());
+					.get(SyntaxKind::NUMBER, number.to_string().as_str());
 
-				NodeToken::new(create_green_node(SyntaxKind::NUMBER), number_token).into()
+				create_literal_token(number_token)
 			}
 
-			Value::Bool(value) => context
-				.tokens
-				.get(SyntaxKind::BOOLEAN_TOKEN, value.to_string().as_str())
-				.into(),
+			Value::Bool(value) => {
+				let token = match value {
+					true => context.tokens.get(SyntaxKind::TRUE_KW, "true"),
+					false => context.tokens.get(SyntaxKind::FALSE_KW, "false"),
+				};
+				create_literal_token(token)
+			}
 
 			Value::Object(value) => {
 				let separator = format_tokens![context.tokens.comma(), LineToken::soft_or_space(),];
@@ -51,7 +63,7 @@ impl FormatValue for Value {
 				];
 
 				NodeToken::new(
-					create_green_node(SyntaxKind::OBJECT),
+					create_green_node(SyntaxKind::OBJECT_EXPR),
 					GroupToken::new(format_tokens![
 						context.tokens.left_brace(),
 						FormatToken::indent(properties),
@@ -75,7 +87,7 @@ impl FormatValue for Value {
 				];
 
 				NodeToken::new(
-					create_green_node(SyntaxKind::ARRAY),
+					create_green_node(SyntaxKind::ARRAY_EXPR),
 					GroupToken::new(format_tokens![
 						context.tokens.left_bracket(),
 						FormatToken::indent(elements),
@@ -97,15 +109,7 @@ fn string_token(string: &str, context: &mut FormatContext) -> FormatToken {
 		.replace('\t', "\\t")
 		.replace('\n', "\\n");
 
-	NodeToken::new(
-		create_green_node(SyntaxKind::STRING_LITERAL),
-		format_tokens!(
-			context.tokens.double_quote(),
-			context.tokens.string(escaped.as_str()),
-			context.tokens.double_quote()
-		),
-	)
-	.into()
+	create_literal_token(context.tokens.double_quoted_string(&escaped))
 }
 
 pub fn json_to_tokens(content: &str) -> FormatToken {
@@ -120,10 +124,10 @@ pub fn json_to_tokens(content: &str) -> FormatToken {
 mod test {
 	use crate::format_json::create_green_node;
 	use crate::{format_tokens, FormatToken, IndentToken, NodeToken, Tokens};
-	use syntax::SyntaxKind;
 
 	use super::json_to_tokens;
 	use crate::format_token::{GroupToken, LineToken};
+	use rslint_parser::SyntaxKind;
 
 	#[test]
 	fn tokenize_number() {
@@ -133,8 +137,8 @@ mod test {
 		assert_eq!(
 			format_tokens![
 				NodeToken::new(
-					create_green_node(SyntaxKind::NUMBER),
-					format_tokens![tokens.get(SyntaxKind::NUMBER_TOKEN, "6.45")]
+					create_green_node(SyntaxKind::LITERAL),
+					tokens.get(SyntaxKind::NUMBER, "6.45")
 				),
 				LineToken::hard()
 			],
@@ -150,12 +154,8 @@ mod test {
 		assert_eq!(
 			format_tokens![
 				NodeToken::new(
-					create_green_node(SyntaxKind::STRING_LITERAL),
-					format_tokens![
-						tokens.double_quote(),
-						tokens.string("foo"),
-						tokens.double_quote(),
-					]
+					create_green_node(SyntaxKind::LITERAL),
+					tokens.get(SyntaxKind::STRING, r#""foo""#)
 				),
 				LineToken::hard()
 			],
@@ -170,7 +170,10 @@ mod test {
 
 		assert_eq!(
 			format_tokens![
-				tokens.get(SyntaxKind::BOOLEAN_TOKEN, "false"),
+				NodeToken::new(
+					create_green_node(SyntaxKind::LITERAL),
+					tokens.get(SyntaxKind::FALSE_KW, "false")
+				),
 				LineToken::hard()
 			],
 			result
@@ -184,7 +187,10 @@ mod test {
 
 		assert_eq!(
 			format_tokens![
-				tokens.get(SyntaxKind::BOOLEAN_TOKEN, "true"),
+				NodeToken::new(
+					create_green_node(SyntaxKind::LITERAL),
+					tokens.get(SyntaxKind::TRUE_KW, "true")
+				),
 				LineToken::hard()
 			],
 			result
@@ -206,45 +212,33 @@ mod test {
 
 		let expected: FormatToken = format_tokens![
 			NodeToken::new(
-				create_green_node(SyntaxKind::OBJECT),
+				create_green_node(SyntaxKind::OBJECT_EXPR),
 				GroupToken::new(format_tokens![
 					tokens.left_brace(),
 					IndentToken::new(format_tokens![
 						LineToken::soft(),
 						NodeToken::new(
-							create_green_node(SyntaxKind::STRING_LITERAL),
-							format_tokens![
-								tokens.double_quote(),
-								tokens.string("foo"),
-								tokens.double_quote(),
-							]
+							create_green_node(SyntaxKind::LITERAL),
+							tokens.get(SyntaxKind::STRING, "\"foo\"")
 						),
 						tokens.colon(),
 						FormatToken::Space,
 						NodeToken::new(
-							create_green_node(SyntaxKind::STRING_LITERAL),
-							format_tokens![
-								tokens.double_quote(),
-								tokens.string("bar"),
-								tokens.double_quote(),
-							]
+							create_green_node(SyntaxKind::LITERAL),
+							tokens.get(SyntaxKind::STRING, "\"bar\"")
 						),
 						tokens.comma(),
 						FormatToken::Line(LineToken::soft_or_space()),
 						NodeToken::new(
-							create_green_node(SyntaxKind::STRING_LITERAL),
-							format_tokens![
-								tokens.double_quote(),
-								tokens.string("num"),
-								tokens.double_quote(),
-							]
+							create_green_node(SyntaxKind::LITERAL),
+							tokens.get(SyntaxKind::STRING, "\"num\"")
 						),
 						tokens.colon(),
 						FormatToken::Space,
 						NodeToken::new(
-							create_green_node(SyntaxKind::NUMBER),
-							tokens.get(SyntaxKind::NUMBER_TOKEN, "5")
-						)
+							create_green_node(SyntaxKind::LITERAL),
+							tokens.get(SyntaxKind::NUMBER, "5")
+						),
 					]),
 					LineToken::soft(),
 					tokens.right_brace(),
@@ -265,34 +259,26 @@ mod test {
 
 		let expected = format_tokens![
 			NodeToken::new(
-				create_green_node(SyntaxKind::ARRAY),
+				create_green_node(SyntaxKind::ARRAY_EXPR),
 				GroupToken::new(format_tokens![
 					tokens.left_bracket(),
 					IndentToken::new(format_tokens![
 						LineToken::soft(),
 						NodeToken::new(
-							create_green_node(SyntaxKind::STRING_LITERAL),
-							format_tokens![
-								tokens.double_quote(),
-								tokens.string("foo"),
-								tokens.double_quote(),
-							]
+							create_green_node(SyntaxKind::LITERAL),
+							tokens.get(SyntaxKind::STRING, "\"foo\"")
 						),
 						tokens.comma(),
 						LineToken::soft_or_space(),
 						NodeToken::new(
-							create_green_node(SyntaxKind::STRING_LITERAL),
-							format_tokens![
-								tokens.double_quote(),
-								tokens.string("bar"),
-								tokens.double_quote(),
-							]
+							create_green_node(SyntaxKind::LITERAL),
+							tokens.get(SyntaxKind::STRING, "\"bar\"")
 						),
 						tokens.comma(),
 						LineToken::soft_or_space(),
 						NodeToken::new(
-							create_green_node(SyntaxKind::NUMBER),
-							tokens.get(SyntaxKind::NUMBER_TOKEN, "5")
+							create_green_node(SyntaxKind::LITERAL),
+							tokens.get(SyntaxKind::NUMBER, "5")
 						),
 					]),
 					LineToken::soft(),

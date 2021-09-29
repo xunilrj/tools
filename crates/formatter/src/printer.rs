@@ -8,9 +8,7 @@ use crate::printer::printer_state::PrinterState;
 use crate::printer::token_call_stack::{PrintTokenArgs, PrintTokenCall, TokenCallStack};
 use crate::{FormatOptions, FormatToken, IndentStyle, Tokens};
 use crate::{GroupToken, LineMode};
-use parser::SyntaxKind;
-use rowan::GreenNode;
-use syntax::SyntaxNode;
+use rslint_parser::{GreenNode, SyntaxKind, SyntaxNode};
 
 /// Options that affect how the [Printer] prints the format tokens
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -125,7 +123,7 @@ impl Printer {
 			_ => {
 				// Ensure that there's always a root node.
 				// Create an artificial root node and insert into the CST
-				let root = create_green_node(SyntaxKind::ROOT);
+				let root = create_green_node(SyntaxKind::SCRIPT);
 				let root_pos = self.state.cst.append_node(ParentNodeId::root(), root);
 				PrintTokenCall::new(token, PrintTokenArgs::default().with_parent_pos(root_pos))
 			}
@@ -327,15 +325,17 @@ impl Printer {
 
 #[inline]
 fn create_green_node(kind: SyntaxKind) -> GreenNode {
-	GreenNode::new(rowan::SyntaxKind(kind.into()), vec![])
+	GreenNode::new(rslint_rowan::SyntaxKind(kind.into()), vec![])
 }
 
 #[cfg(test)]
 mod tests {
-	use crate::format_token::{GroupToken, IfBreakToken, IndentToken, LineToken, NodeToken};
+	use crate::format_token::{
+		GroupToken, IfBreakToken, IndentToken, LineToken, NodeToken, TokenToken,
+	};
 	use crate::printer::{create_green_node, LineEnding, PrintResult, Printer, PrinterOptions};
 	use crate::{format_tokens, FormatToken, Tokens};
-	use parser::SyntaxKind;
+	use rslint_parser::SyntaxKind;
 
 	#[test]
 	fn it_prints_a_group_on_a_single_line_if_it_fits() {
@@ -358,17 +358,17 @@ mod tests {
 
 		let result = print(create_array_tokens(
 			vec![
-				create_string_literal("a", &mut tokens),
-				create_string_literal("b", &mut tokens),
-				create_string_literal("c", &mut tokens),
-				create_string_literal("d", &mut tokens),
+				create_string("a", &mut tokens),
+				create_string("b", &mut tokens),
+				create_string("c", &mut tokens),
+				create_string("d", &mut tokens),
 				create_array_tokens(
 					vec![
-						create_string_literal("0123456789", &mut tokens),
-						create_string_literal("0123456789", &mut tokens),
-						create_string_literal("0123456789", &mut tokens),
-						create_string_literal("0123456789", &mut tokens),
-						create_string_literal("0123456789", &mut tokens),
+						create_string("0123456789", &mut tokens),
+						create_string("0123456789", &mut tokens),
+						create_string("0123456789", &mut tokens),
+						create_string("0123456789", &mut tokens),
+						create_string("0123456789", &mut tokens),
 					],
 					&mut tokens,
 				),
@@ -440,17 +440,17 @@ mod tests {
 
 		let array = create_array_tokens(
 			vec![
-				create_string_literal("abcd", &mut tokens),
-				create_string_literal("efgh", &mut tokens),
-				create_string_literal("ijkl", &mut tokens),
-				create_string_literal("mnop", &mut tokens),
-				create_string_literal("qrst", &mut tokens),
-				create_string_literal("uvwx", &mut tokens),
-				create_string_literal("yz01", &mut tokens),
-				create_string_literal("2345", &mut tokens),
-				create_string_literal("6789", &mut tokens),
-				create_string_literal("abcd", &mut tokens),
-				create_string_literal("ef", &mut tokens),
+				create_string("abcd", &mut tokens),
+				create_string("efgh", &mut tokens),
+				create_string("ijkl", &mut tokens),
+				create_string("mnop", &mut tokens),
+				create_string("qrst", &mut tokens),
+				create_string("uvwx", &mut tokens),
+				create_string("yz01", &mut tokens),
+				create_string("2345", &mut tokens),
+				create_string("6789", &mut tokens),
+				create_string("abcd", &mut tokens),
+				create_string("ef", &mut tokens),
 			],
 			&mut tokens,
 		);
@@ -475,10 +475,10 @@ mod tests {
 
 		let result = printer.print(&create_array_tokens(
 			vec![
-				create_string_literal("a", &mut tokens),
-				create_string_literal("b", &mut tokens),
-				create_string_literal("c", &mut tokens),
-				create_string_literal("d", &mut tokens),
+				create_string("a", &mut tokens),
+				create_string("b", &mut tokens),
+				create_string("c", &mut tokens),
+				create_string("d", &mut tokens),
 			],
 			&mut tokens,
 		));
@@ -507,24 +507,16 @@ mod tests {
 		.into()
 	}
 
-	fn create_string_literal(str: &str, tokens: &mut Tokens) -> FormatToken {
+	fn create_string(str: &str, tokens: &mut Tokens) -> FormatToken {
 		NodeToken::new(
-			create_green_node(SyntaxKind::STRING_LITERAL),
-			format_tokens![
-				tokens.double_quote(),
-				tokens.string(str),
-				tokens.double_quote(),
-			],
+			create_green_node(SyntaxKind::STRING),
+			TokenToken::new(tokens.double_quoted_string(str)),
 		)
 		.into()
 	}
 
 	fn create_number(num: u32, tokens: &mut Tokens) -> FormatToken {
-		NodeToken::new(
-			create_green_node(SyntaxKind::NUMBER),
-			tokens.get(SyntaxKind::NUMBER_TOKEN, num.to_string().as_str()),
-		)
-		.into()
+		FormatToken::from(tokens.get(SyntaxKind::NUMBER, num.to_string().as_str()))
 	}
 
 	fn printer_options() -> PrinterOptions {

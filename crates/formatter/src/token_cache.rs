@@ -1,8 +1,8 @@
 use hashbrown::hash_map::RawEntryMut;
 use hashbrown::HashMap;
-use rowan::GreenToken;
+use rslint_parser::SyntaxKind;
+use rslint_rowan::{GreenToken, SmolStr};
 use std::hash::{BuildHasher, Hash, Hasher};
-use syntax::SyntaxKind;
 
 /// Cache for re-using rowan green tokens.
 ///
@@ -12,7 +12,7 @@ pub struct TokensCache(HashMap<GreenToken, ()>);
 
 impl TokensCache {
 	pub fn get(&mut self, kind: SyntaxKind, text: &str) -> GreenToken {
-		let kind = rowan::SyntaxKind(kind.into());
+		let kind = rslint_rowan::SyntaxKind(kind.into());
 		let hash = {
 			let mut hasher = self.0.hasher().build_hasher();
 			kind.hash(&mut hasher);
@@ -28,7 +28,8 @@ impl TokensCache {
 		match entry {
 			RawEntryMut::Occupied(entry) => entry.key().clone(),
 			RawEntryMut::Vacant(entry) => {
-				let token = GreenToken::new(kind, text);
+				let token = GreenToken::new(kind, SmolStr::new(text));
+
 				entry.insert_hashed_nocheck(hash, token.clone(), ());
 				token
 			}
@@ -39,19 +40,18 @@ impl TokensCache {
 #[cfg(test)]
 mod tests {
 	use crate::tokens::Tokens;
-	use rowan::GreenTokenData;
-	use std::borrow::Borrow;
-	use syntax::SyntaxKind;
+	use rslint_parser::SyntaxKind;
+	use rslint_rowan::GreenToken;
 
 	#[test]
 	fn it_returns_a_token_with_the_specified_kind_and_text() {
 		let mut cache = Tokens::default();
 
-		let one = cache.get(SyntaxKind::NUMBER_TOKEN, "1");
+		let one = cache.get(SyntaxKind::NUMBER, "1");
 
 		assert_eq!("1", one.text());
 		assert_eq!(
-			rowan::SyntaxKind(SyntaxKind::NUMBER_TOKEN.into()),
+			rslint_rowan::SyntaxKind(SyntaxKind::NUMBER.into()),
 			one.kind()
 		);
 	}
@@ -65,8 +65,8 @@ mod tests {
 
 		assert_eq!(indent, indent_2);
 
-		let indent1_ptr = indent.borrow() as *const GreenTokenData as *const ();
-		let indent2_ptr = indent_2.borrow() as *const GreenTokenData as *const ();
+		let indent1_ptr = &indent as *const GreenToken;
+		let indent2_ptr = &indent_2 as *const GreenToken;
 
 		assert_eq!(
 			indent1_ptr, indent2_ptr,
@@ -78,8 +78,8 @@ mod tests {
 	fn it_returns_different_tokens_if_text_differs() {
 		let mut cache = Tokens::default();
 
-		let one = cache.get(SyntaxKind::NUMBER_TOKEN, "1");
-		let two = cache.get(SyntaxKind::NUMBER_TOKEN, "2");
+		let one = cache.get(SyntaxKind::NUMBER, "1");
+		let two = cache.get(SyntaxKind::NUMBER, "2");
 
 		assert_eq!("1", one.text());
 		assert_eq!("2", two.text());
@@ -90,14 +90,14 @@ mod tests {
 		let mut cache = Tokens::default();
 
 		let whitespace = cache.get(SyntaxKind::WHITESPACE, " ");
-		let string = cache.get(SyntaxKind::STRING_TOKEN, " ");
+		let string = cache.get(SyntaxKind::STRING, " ");
 
 		assert_eq!(
-			rowan::SyntaxKind(SyntaxKind::WHITESPACE.into()),
+			rslint_rowan::SyntaxKind(SyntaxKind::WHITESPACE.into()),
 			whitespace.kind()
 		);
 		assert_eq!(
-			rowan::SyntaxKind(SyntaxKind::STRING_TOKEN.into()),
+			rslint_rowan::SyntaxKind(SyntaxKind::STRING.into()),
 			string.kind()
 		);
 	}

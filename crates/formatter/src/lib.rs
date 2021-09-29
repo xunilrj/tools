@@ -18,6 +18,7 @@
 //!
 //! Now, we do want to create this IR for the data structure:
 //! ```rust
+//! use rslint_parser::SyntaxKind;
 //! use rome_formatter::{format_tokens, format_token, FormatToken, FormatValue, FormatOptions, FormatContext};
 //!
 //! struct KeyValue {
@@ -28,11 +29,11 @@
 //! impl FormatValue for KeyValue {
 //!     fn format(&self, context: &mut FormatContext) -> FormatToken {
 //!         format_tokens![
-//!             context.tokens.string(self.key.as_str()),
+//!             context.tokens.double_quoted_string(self.key.as_str()),
 //!             FormatToken::Space,
-//!             context.tokens.string("=>"),
+//!             context.tokens.get(SyntaxKind::FAT_ARROW, "=>"),
 //!             FormatToken::Space,
-//!             context.tokens.string(self.value.as_str())
+//!             context.tokens.double_quoted_string(self.value.as_str())
 //!         ]
 //!     }
 //! }
@@ -65,10 +66,10 @@ pub use format_token::{
 	FormatToken, GroupToken, IfBreakToken, IndentToken, LineMode, LineToken, ListToken, NodeToken,
 	RawNodeToken,
 };
+use rslint_parser::parse_text;
 use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::path::Path;
-use syntax::Language;
 pub use tokens::Tokens;
 
 #[derive(Default, Debug)]
@@ -153,7 +154,7 @@ pub fn format_str(
 	let tokens = match language {
 		FormatterLanguage::JSON => json_to_tokens(content),
 		FormatterLanguage::TS => {
-			let cst = syntax::parse(content, Language::Ts).unwrap();
+			let cst = parse_text(content, 0);
 
 			FormatToken::RawNode(RawNodeToken::new(cst.green()))
 		}

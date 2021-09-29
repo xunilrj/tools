@@ -9,18 +9,17 @@
 ///
 /// ```rust
 /// use rome_formatter::{format_tokens, FormatToken, Tokens, format_token, FormatOptions};
-/// use syntax::SyntaxKind;
 ///
 /// let mut tokens = Tokens::default();
 /// let token = format_tokens!(
-///     tokens.string("foo"),
+///     tokens.double_quoted_string("foo"),
 ///     tokens.colon(),
 ///     FormatToken::Space,
-///     tokens.string("bar")
+///     tokens.double_quoted_string("bar")
 /// );
 ///
 /// assert_eq!(
-///     "foo: bar",
+///     r#""foo": "bar""#,
 ///     format_token(&token, FormatOptions::default()).root().text().to_string().as_str()
 /// )
 /// ```
@@ -35,22 +34,21 @@
 ///
 /// ```rust
 /// use rome_formatter::{format_tokens, format_token, IndentToken, FormatToken, FormatOptions, Tokens};
-/// use parser::SyntaxKind;
 ///
 /// let mut tokens = Tokens::default();
 ///
 /// let token = format_tokens!(
-///   tokens.string("foo"),
+///   tokens.double_quoted_string("foo"),
 ///   tokens.colon(),
 ///   FormatToken::Space,
 ///   tokens.left_brace(),
 ///   FormatToken::Space,
 ///   IndentToken::new(
 ///     format_tokens![
-///       tokens.string("bar"),
+///       tokens.double_quoted_string("bar"),
 ///       tokens.colon(),
 ///       FormatToken::Space,
-///       tokens.string("lorem"),
+///       tokens.double_quoted_string("lorem"),
 ///     ]
 ///   ),
 ///   FormatToken::Space,
@@ -58,18 +56,17 @@
 /// );
 ///
 /// assert_eq!(
-///   r#"foo: { bar: lorem }"#,
+///   r#""foo": { "bar": "lorem" }"#,
 ///   format_token(&token, FormatOptions::default()).root().text().to_string().as_str());
 /// ```
 /// Or you can also create single tokens:
 /// ```
-/// use parser::SyntaxKind;
 /// use rome_formatter::{format_tokens, format_token, FormatOptions, Tokens};
 /// let mut tokens = Tokens::default();
 ///
-/// let unique_token = format_tokens!(tokens.string("single"));
+/// let unique_token = format_tokens!(tokens.double_quoted_string("single"));
 /// assert_eq!(
-///   r"single",
+///   r#""single""#,
 ///   format_token(&unique_token, FormatOptions::default()).root().text().to_string().as_str()
 /// );
 /// ```

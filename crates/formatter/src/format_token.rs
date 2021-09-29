@@ -1,7 +1,7 @@
 use crate::intersperse::Intersperse;
-use rowan::{GreenNode, GreenToken};
+use rslint_parser::{GreenNode, SyntaxToken};
+use rslint_rowan::GreenToken;
 use std::ops::Deref;
-use syntax::SyntaxToken;
 
 type Content = Box<FormatToken>;
 pub type Tokens = Vec<FormatToken>;
@@ -85,11 +85,11 @@ impl ListToken {
 	///
 	/// ```
 	/// use rome_formatter::{ListToken, FormatToken, Tokens};
-	/// use syntax::SyntaxKind;
+	/// use rslint_parser::SyntaxKind;
 	///
 	/// let mut tokens = Tokens::default();
-	/// let one: FormatToken = tokens.get(SyntaxKind::NUMBER_TOKEN, "1").into();
-	/// let two: FormatToken = tokens.get(SyntaxKind::NUMBER_TOKEN, "2").into();
+	/// let one: FormatToken = tokens.get(SyntaxKind::NUMBER, "1").into();
+	/// let two: FormatToken = tokens.get(SyntaxKind::NUMBER, "2").into();
 	///
 	/// let sub_list = ListToken::concat(vec![one.clone()]);
 	/// let parent_list = ListToken::concat(vec![
@@ -122,12 +122,12 @@ impl ListToken {
 	///
 	/// ```
 	/// use rome_formatter::{FormatToken, ListToken, Tokens};
-	/// use syntax::SyntaxKind;
+	/// use rslint_parser::SyntaxKind;
 	///
 	/// let mut tokens = Tokens::default();
 	/// let comma: FormatToken = tokens.comma().into();
-	/// let one: FormatToken = tokens.get(SyntaxKind::NUMBER_TOKEN, "1").into();
-	/// let two: FormatToken = tokens.get(SyntaxKind::NUMBER_TOKEN, "2").into();
+	/// let one: FormatToken = tokens.get(SyntaxKind::NUMBER, "1").into();
+	/// let two: FormatToken = tokens.get(SyntaxKind::NUMBER, "2").into();
 	///
 	/// let result = ListToken::join(comma.clone(), vec![one.clone(), two.clone()]);
 	///
@@ -332,21 +332,21 @@ impl From<IndentToken> for FormatToken {
 	}
 }
 
-impl From<GreenToken> for FormatToken {
-	fn from(token: GreenToken) -> Self {
-		FormatToken::Token(TokenToken::new(token))
+impl<T: Into<TokenToken>> From<T> for FormatToken {
+	fn from(token: T) -> Self {
+		FormatToken::Token(token.into())
 	}
 }
 
 impl From<NodeToken> for FormatToken {
-	fn from(token: NodeToken) -> Self {
-		FormatToken::Node(token)
+	fn from(node: NodeToken) -> Self {
+		FormatToken::Node(node)
 	}
 }
 
-impl From<TokenToken> for FormatToken {
-	fn from(token: TokenToken) -> Self {
-		FormatToken::Token(token)
+impl From<RawNodeToken> for FormatToken {
+	fn from(node: RawNodeToken) -> Self {
+		FormatToken::RawNode(node)
 	}
 }
 

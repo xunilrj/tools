@@ -1,7 +1,7 @@
 use crate::token_cache::TokensCache;
 use lazy_static::lazy_static;
-use rowan::GreenToken;
-use syntax::SyntaxKind;
+use rslint_parser::SyntaxKind;
+use rslint_rowan::{GreenToken, SmolStr};
 
 /// Helper for building rowan green tree tokens.
 ///
@@ -10,8 +10,11 @@ use syntax::SyntaxKind;
 pub struct Tokens(TokensCache);
 
 #[inline]
-fn create_token(kind: SyntaxKind, text: &str) -> GreenToken {
-	GreenToken::new(rowan::SyntaxKind(kind.into()), text)
+fn create_small_token(kind: SyntaxKind, text: &str) -> GreenToken {
+	GreenToken::new(
+		rslint_rowan::SyntaxKind(kind.into()),
+		SmolStr::new_inline(text),
+	)
 }
 
 impl Tokens {
@@ -22,8 +25,8 @@ impl Tokens {
 
 	/// Creates a string token with the specified text
 	#[inline]
-	pub fn string(&mut self, text: &str) -> GreenToken {
-		self.get(SyntaxKind::STRING_TOKEN, text)
+	pub fn double_quoted_string(&mut self, text: &str) -> GreenToken {
+		self.get(SyntaxKind::STRING, format!("\"{}\"", text).as_str())
 	}
 
 	/// Creates a whitespace token
@@ -36,37 +39,17 @@ impl Tokens {
 	#[inline]
 	pub fn comma(&self) -> GreenToken {
 		lazy_static! {
-			static ref COMMA: GreenToken = create_token(SyntaxKind::COMMA_TOKEN, ",");
+			static ref COMMA: GreenToken = create_small_token(SyntaxKind::COMMA, ",");
 		}
 
 		(*COMMA).clone()
-	}
-
-	/// Returns a `"` token
-	#[inline]
-	pub fn double_quote(&self) -> GreenToken {
-		lazy_static! {
-			static ref DQUOTE: GreenToken = create_token(SyntaxKind::DQUOTE_TOKEN, "\"");
-		}
-
-		(*DQUOTE).clone()
-	}
-
-	/// Returns a `'` token
-	#[inline]
-	pub fn single_quote(&self) -> GreenToken {
-		lazy_static! {
-			static ref SQUOTE: GreenToken = create_token(SyntaxKind::SQUOTE_TOKEN, "'");
-		}
-
-		(*SQUOTE).clone()
 	}
 
 	/// Returns a `'` token
 	#[inline]
 	pub fn colon(&self) -> GreenToken {
 		lazy_static! {
-			static ref COLON: GreenToken = create_token(SyntaxKind::COLON_TOKEN, ":");
+			static ref COLON: GreenToken = create_small_token(SyntaxKind::COLON, ":");
 		}
 
 		(*COLON).clone()
@@ -76,7 +59,7 @@ impl Tokens {
 	#[inline]
 	pub fn left_bracket(&self) -> GreenToken {
 		lazy_static! {
-			static ref LBRACK: GreenToken = create_token(SyntaxKind::LBRACK_TOKEN, "[");
+			static ref LBRACK: GreenToken = create_small_token(SyntaxKind::L_BRACK, "[");
 		}
 
 		(*LBRACK).clone()
@@ -86,7 +69,7 @@ impl Tokens {
 	#[inline]
 	pub fn right_bracket(&self) -> GreenToken {
 		lazy_static! {
-			static ref RBRACK: GreenToken = create_token(SyntaxKind::RBRACK_TOKEN, "]");
+			static ref RBRACK: GreenToken = create_small_token(SyntaxKind::R_BRACK, "]");
 		}
 
 		(*RBRACK).clone()
@@ -96,7 +79,7 @@ impl Tokens {
 	#[inline]
 	pub fn left_brace(&self) -> GreenToken {
 		lazy_static! {
-			static ref LBRACE: GreenToken = create_token(SyntaxKind::LBRACE_TOKEN, "{");
+			static ref LBRACE: GreenToken = create_small_token(SyntaxKind::L_CURLY, "{");
 		}
 
 		(*LBRACE).clone()
@@ -106,7 +89,7 @@ impl Tokens {
 	#[inline]
 	pub fn right_brace(&self) -> GreenToken {
 		lazy_static! {
-			static ref RBRACE: GreenToken = create_token(SyntaxKind::RBRACE_TOKEN, "}");
+			static ref RBRACE: GreenToken = create_small_token(SyntaxKind::R_CURLY, "}");
 		}
 
 		(*RBRACE).clone()
@@ -116,7 +99,7 @@ impl Tokens {
 	#[inline]
 	pub fn null(&self) -> GreenToken {
 		lazy_static! {
-			static ref NULL: GreenToken = create_token(SyntaxKind::NULL, "null");
+			static ref NULL: GreenToken = create_small_token(SyntaxKind::NULL_KW, "null");
 		}
 
 		(*NULL).clone()
