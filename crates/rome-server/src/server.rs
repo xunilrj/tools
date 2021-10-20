@@ -111,9 +111,10 @@ impl RomeBuilder {
             RomeCommands::AnalyserWhat { file, line, col } => {
                 let mut file = normalize_path(file);
                 let db = db.snapshot();
+                let callback = envelope.callback;
                 let _ = spawn(async move {
                     let r = crate::analyser::what(db, file, line, col).await.unwrap();
-                    let _ = envelope.callback.send_async(RomeResponse::What(r)).await;
+                    let _ = callback.send_async(RomeResponse::What(r)).await;
                 });
             }
         };
