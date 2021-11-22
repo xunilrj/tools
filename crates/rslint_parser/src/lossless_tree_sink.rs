@@ -94,7 +94,6 @@ impl<'a> TreeSink for LosslessTreeSink<'a> {
 	}
 
 	fn finish_node(&mut self) {
-		//println!("LosslessTreeSink::finish_node");
 		match mem::replace(&mut self.state, State::PendingFinish) {
 			State::PendingStart => unreachable!(),
 			State::PendingFinish => self.inner.finish_node(),
